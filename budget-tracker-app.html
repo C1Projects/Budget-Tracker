@@ -417,27 +417,34 @@ function setSyncBadge(state, text){
   b.textContent = text;
 }
 
+let dirty = false;
 let saveTimer = null;
 function scheduleSave(){
-  save_local_cache();
+  dirty = true;
   setSyncBadge('saving','saving…');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(pushToGitHub, 900);
-}
-function save_local_cache(){
-  // keep an encrypted-at-rest-adjacent local cache so the app still works offline;
-  // this is plaintext in memory only, never written unencrypted to disk.
+  saveTimer = setTimeout(()=>pushToGitHub(), 900);
 }
 async function pushToGitHub(attempt){
   attempt = attempt || 1;
   try{
     const blob = await encryptBlob(sessionKey, data, cfg.salt);
     currentSha = await ghPut(blob, currentSha);
+    dirty = false;
     setSyncBadge('synced','synced');
     localStorage.setItem('ledger_last_synced', new Date().toLocaleString());
     updateSyncLabels();
   }catch(e){
     console.error(e);
+    if(String(e.message).includes('409') && attempt < 3){
+      // remote changed since we last read it — refetch the current version and retry with it
+      try{
+        const fresh = await ghGet();
+        currentSha = fresh.sha;
+        setSyncBadge('saving', `resolving update (${attempt}/3)…`);
+        return pushToGitHub(attempt+1);
+      }catch(e2){ console.error(e2); }
+    }
     if(attempt < 3){
       setSyncBadge('saving', `retrying (${attempt}/3)…`);
       setTimeout(()=>pushToGitHub(attempt+1), attempt * 3000);
@@ -446,12 +453,29 @@ async function pushToGitHub(attempt){
     }
   }
 }
-function manualSync(){ pushToGitHub(); }
+async function pullIfChanged(){
+  if(!sessionKey || dirty) return; // never clobber unsaved local edits
+  try{
+    const remote = await ghGet();
+    if(remote.sha && remote.sha !== currentSha){
+      const fresh = await decryptBlob(sessionKey, remote.content);
+      data = fresh;
+      currentSha = remote.sha;
+      setSyncBadge('synced','synced');
+      localStorage.setItem('ledger_last_synced', new Date().toLocaleString());
+      updateSyncLabels();
+      render();
+    }
+  }catch(e){ console.error('pull check failed', e); }
+}
+function manualSync(){ dirty ? pushToGitHub() : pullIfChanged(); }
 document.addEventListener('DOMContentLoaded', ()=>{
   const badge = document.getElementById('syncBadge');
   if(badge) badge.addEventListener('click', ()=>{ if(sessionKey) manualSync(); });
 });
-window.addEventListener('focus', ()=>{ if(sessionKey && data) pushToGitHub(); });
+window.addEventListener('focus', pullIfChanged);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') pullIfChanged(); });
+setInterval(pullIfChanged, 45000);
 function updateSyncLabels(){
   const rl = document.getElementById('repoLabel');
   if(rl) rl.textContent = cfg ? `${cfg.ghUser}/${cfg.ghRepo}` : '—';
