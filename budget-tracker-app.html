@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger</title>
+<style>
+  :root{--ink:#14171c;--panel:#1c2028;--panel-2:#232833;--paper:#eef0e8;--line:#343c4a;--mint:#3eb489;--rust:#c1543c;--steel:#5b84c4;--muted:#8a93a6;--gold:#d9b25f;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--paper);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+  .mono{font-family:'Courier New',ui-monospace,monospace;}
+  .center{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%, #1e232d 0%, #14171c 70%);z-index:50;padding:20px;text-align:center;}
+  .brand{font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .brand strong{color:var(--gold);}
+  h1.title{font-size:22px;margin:0 0 8px;color:var(--paper);font-weight:600;}
+  .subtext{color:var(--muted);font-size:13px;max-width:340px;margin-bottom:22px;line-height:1.5;}
+  .dots{display:flex;gap:16px;margin-bottom:32px;}
+  .dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);transition:.15s;}
+  .dot.filled{background:var(--gold);border-color:var(--gold);}
+  .keypad{display:grid;grid-template-columns:repeat(3,64px);gap:14px;}
+  .key{width:64px;height:64px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);color:var(--paper);font-size:20px;cursor:pointer;}
+  .key:hover{background:#2b3242;} .key:active{transform:scale(.94);}
+  .key.wide{background:transparent;border:none;visibility:hidden;}
+  .errtext{color:var(--rust);font-size:13px;height:18px;margin-top:14px;}
+  .setupForm{width:100%;max-width:360px;text-align:left;}
+  .setupForm label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;}
+  .setupForm input{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--paper);border-radius:8px;padding:10px 12px;font-size:14px;}
+  .setupForm input:focus{outline:1px solid var(--gold);border-color:var(--gold);}
+  .btn{background:var(--gold);color:#1a1a1a;border:none;border-radius:8px;padding:10px 18px;font-weight:600;font-size:13px;cursor:pointer;}
+  .btn:hover{filter:brightness(1.08);}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--paper);}
+  .btn.small{padding:6px 12px;font-size:12px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .fullwidth{width:100%;margin-top:20px;}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px;}
+
+  #app{display:none;max-width:960px;margin:0 auto;padding:28px 20px 80px;}
+  header.top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:14px;}
+  header.top h1{font-size:24px;margin:0;font-weight:600;letter-spacing:-.01em;}
+  header.top .sub{color:var(--muted);font-size:13px;margin-top:4px;}
+  .topbtns{display:flex;gap:8px;align-items:center;}
+  .iconbtn{background:none;border:1px solid var(--line);color:var(--muted);padding:7px 14px;border-radius:20px;font-size:12px;cursor:pointer;}
+  .iconbtn:hover{color:var(--paper);border-color:var(--muted);}
+  .iconbtn.active{color:var(--gold);border-color:var(--gold);}
+  .syncbadge{font-size:11px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);color:var(--muted);}
+  .syncbadge.saving{color:var(--gold);border-color:var(--gold);}
+  .syncbadge.synced{color:var(--mint);border-color:var(--mint);}
+  .syncbadge.error{color:var(--rust);border-color:var(--rust);}
+
+  .monthbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+  .monthbar button{background:var(--panel);border:1px solid var(--line);color:var(--paper);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .monthbar .label{font-size:16px;font-weight:600;min-width:170px;text-align:center;}
+
+  .hero{background:linear-gradient(135deg, #2a2413 0%, #1c2028 60%);border:1px solid var(--gold);border-radius:16px;padding:22px 26px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+  .hero .k{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);margin-bottom:6px;font-weight:600;}
+  .hero .v{font-size:38px;font-weight:700;color:var(--paper);}
+  .hero .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:22px;}
+  @media(max-width:760px){.grid{grid-template-columns:1fr 1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;}
+  .card .v{font-size:19px;font-weight:600;}
+  .v.pos{color:var(--mint);} .v.neg{color:var(--rust);}
+  .card input{width:100%;font-size:17px;font-weight:600;background:transparent;border:none;color:var(--paper);padding:0;}
+  .card input:focus{outline:none;}
+  .editable-hint{font-size:10px;color:var(--muted);margin-top:4px;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px;}
+  .panel h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px;font-weight:600;}
+
+  input,select,textarea{background:var(--panel-2);border:1px solid var(--line);color:var(--paper);border-radius:8px;padding:9px 10px;font-size:14px;font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:1px solid var(--gold);border-color:var(--gold);}
+
+  .txform{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:8px;}
+  @media(max-width:900px){.txform{grid-template-columns:1fr 1fr;}}
+  .txform label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;}
+  .dateWrap{display:flex;gap:6px;}
+  .dateWrap input{flex:1;}
+  .todaybtn{background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:0 10px;font-size:11px;cursor:pointer;}
+  .todaybtn:hover{color:var(--gold);border-color:var(--gold);}
+  .btn.danger{background:var(--rust);color:#fff;}
+  .split-row{display:none;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px;}
+  .split-row.show{display:grid;}
+  .flagnote{display:none;color:var(--gold);font-size:12px;margin-top:8px;}
+  .flagnote.show{display:block;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--line);}
+  td{padding:9px 8px;border-bottom:1px solid #262b36;vertical-align:middle;}
+  tr:hover td{background:#20242e;}
+  .tag{padding:2px 8px;border-radius:20px;font-size:11px;display:inline-block;}
+  .tag.exp{background:rgba(193,84,60,.18);color:#e08268;}
+  .tag.inc{background:rgba(62,180,137,.18);color:#6fd3ac;}
+  .tag.flag{background:rgba(217,178,95,.18);color:var(--gold);margin-left:6px;}
+  .amt.exp{color:var(--rust);} .amt.inc{color:var(--mint);}
+  .rowbtns{display:flex;gap:8px;}
+  .iconsm{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;}
+  .iconsm:hover{color:var(--gold);}
+  .iconsm.del:hover{color:var(--rust);}
+
+  .shot-row{border:1px dashed var(--line);border-radius:10px;padding:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .shot-row img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);}
+  .shot-fields{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;flex:1;min-width:280px;}
+
+  #chartWrap{width:100%;overflow-x:auto;}
+  svg text{fill:var(--muted);font-size:10px;}
+  .empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center;}
+
+  .chiplist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .chip{background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:5px 8px 5px 12px;font-size:12px;display:flex;align-items:center;gap:8px;}
+  .chip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;}
+  .chip button:hover{color:var(--rust);}
+  .addrow{display:flex;gap:8px;margin-bottom:20px;}
+  .addrow input{flex:1;}
+  .settingsgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:700px){.settingsgrid{grid-template-columns:1fr;}}
+  details{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:16px;}
+  details summary{cursor:pointer;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+  details[open] summary{color:var(--gold);margin-bottom:10px;}
+  .overallrow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #262b36;font-size:13px;}
+  .overallrow:last-child{border-bottom:none;}
+  .exportrow{display:flex;gap:10px;flex-wrap:wrap;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<!-- SETUP (first run only) -->
+<div class="center" id="setupScreen">
+  <div class="brand"><strong>LEDGER</strong> · encrypted sync</div>
+  <h1 class="title">Set up your synced ledger</h1>
+  <div class="subtext">This connects to your private GitHub repo and encrypts everything before it ever leaves this device. None of this is sent to anyone but GitHub — and GitHub only ever sees scrambled data.</div>
+  <div class="setupForm">
+    <label>GitHub username</label>
+    <input type="text" id="setupUser" placeholder="your GitHub username">
+    <label>Repository name</label>
+    <input type="text" id="setupRepo" placeholder="Budget-Tracker">
+    <label>Personal access token</label>
+    <input type="password" id="setupToken" placeholder="paste your token">
+    <label>Choose a 4-digit PIN (quick daily unlock)</label>
+    <input type="password" id="setupPin" maxlength="4" placeholder="4 digits">
+    <label>Choose a strong encryption passphrase (12+ characters — this is what actually protects your data)</label>
+    <input type="password" id="setupPass" placeholder="a longer passphrase">
+    <label>Confirm passphrase</label>
+    <input type="password" id="setupPass2" placeholder="type it again">
+    <div class="hint">Write this passphrase down somewhere safe. If you lose it, your data can't be recovered by anyone — that's the point of real encryption.</div>
+    <button class="btn fullwidth" onclick="doSetup()">Connect &amp; Create Ledger</button>
+    <div class="errtext" id="setupError"></div>
+  </div>
+</div>
+
+<!-- PIN UNLOCK -->
+<div class="center hidden" id="pinScreen">
+  <div class="brand"><strong>LEDGER</strong> · encrypted sync</div>
+  <h1 class="title">Enter your PIN</h1>
+  <div class="dots" id="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <div class="keypad" id="keypad"></div>
+  <div class="errtext" id="pinError"></div>
+  <button class="btn ghost small" style="margin-top:14px;" onclick="usePassphraseInstead()">Use passphrase instead</button>
+</div>
+
+<!-- PASSPHRASE (only when key not cached in memory) -->
+<div class="center hidden" id="passScreen">
+  <div class="brand"><strong>LEDGER</strong> · encrypted sync</div>
+  <h1 class="title">Enter your passphrase</h1>
+  <div class="subtext">This decrypts your data. Needed the first time you open the app this session, or after auto-lock.</div>
+  <div class="setupForm">
+    <input type="password" id="passInput" placeholder="your passphrase" onkeydown="if(event.key==='Enter') submitPassphrase()">
+    <button class="btn fullwidth" onclick="submitPassphrase()">Unlock</button>
+    <div class="errtext" id="passError"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header class="top">
+    <div>
+      <h1>Ledger</h1>
+      <div class="sub">Money in, money out — encrypted, and synced to your own repo.</div>
+    </div>
+    <div class="topbtns">
+      <span class="syncbadge" id="syncBadge">idle</span>
+      <button class="iconbtn" id="viewLedgerBtn" onclick="setView('ledger')">Ledger</button>
+      <button class="iconbtn" id="viewSettingsBtn" onclick="setView('settings')">⚙ Settings</button>
+      <button class="iconbtn" onclick="lockFully()">🔒 Lock</button>
+    </div>
+  </header>
+
+  <div id="ledgerView">
+    <div class="monthbar">
+      <button onclick="shiftMonth(-1)">‹</button>
+      <div class="label" id="monthLabel"></div>
+      <button onclick="shiftMonth(1)">›</button>
+    </div>
+
+    <div class="hero">
+      <div>
+        <div class="k">Spending Money Available</div>
+        <div class="v" id="spendLeft">$0.00</div>
+        <div class="hint">Starting balance + income − expenses, this month</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="k">Starting Balance</div>
+        <input type="number" step="0.01" id="startBalInput" oninput="setStartBalance(this.value)">
+        <div class="editable-hint">editable</div>
+      </div>
+      <div class="card"><div class="k">Net This Month</div><div class="v" id="netMonth">$0.00</div></div>
+      <div class="card"><div class="k">Savings — This Month</div>
+        <input type="number" step="0.01" id="savingsAdjInput" oninput="setAdjustment('savingsAdjustment', this.value)">
+        <div class="editable-hint">net incl. adjustment</div>
+      </div>
+      <div class="card"><div class="k">Investments/Other — This Month</div>
+        <input type="number" step="0.01" id="investAdjInput" oninput="setAdjustment('investAdjustment', this.value)">
+        <div class="editable-hint">net incl. adjustment</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Balance Flow This Month</h2>
+      <div id="chartWrap"><svg id="chart" width="900" height="220"></svg></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="formHeading">Add Transaction</h2>
+      <div class="txform">
+        <div><label>Type</label>
+          <select id="txType" onchange="onTypeChange()">
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </div>
+        <div><label>Date</label>
+          <div class="dateWrap">
+            <input type="date" id="txDate">
+            <button type="button" class="todaybtn" onclick="setToday('txDate')">Today</button>
+          </div>
+        </div>
+        <div><label>Amount</label><input type="number" step="0.01" id="txAmount" placeholder="0.00"></div>
+        <div><label>Account</label><select id="txAccount" onchange="onAccountChange()"></select></div>
+        <div><label>Category</label><select id="txCategory"></select></div>
+        <div><button class="btn" id="submitBtn" onclick="submitTransaction()">Add</button></div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px;">Description</label>
+        <input type="text" id="txDesc" placeholder="optional" style="width:100%;">
+      </div>
+      <div class="split-row" id="splitRow">
+        <div><label style="font-size:11px;color:var(--muted);">→ Spending $</label><input type="number" step="0.01" id="splitSpend" placeholder="0.00"></div>
+        <div><label style="font-size:11px;color:var(--muted);">→ Savings $</label><input type="number" step="0.01" id="splitSave" placeholder="0.00"></div>
+        <div><label style="font-size:11px;color:var(--muted);">→ Investment/Other $</label><input type="number" step="0.01" id="splitInvest" placeholder="0.00"></div>
+      </div>
+      <div class="flagnote" id="flagNote">⚑ This income will be flagged — you'll be reminded to move it into Bank later.</div>
+      <div id="editCancelWrap" style="display:none;margin-top:10px;">
+        <button class="btn ghost small" onclick="cancelEdit()">Cancel edit</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Add From Screenshot</h2>
+      <div class="shot-row"><input type="file" accept="image/*" id="shotInput" onchange="handleShot(event)"></div>
+      <div id="stagedShots"></div>
+      <div style="color:var(--muted);font-size:12px;margin-top:10px;">This build doesn't auto-read screenshots yet — attach the image, fill in the fields, and confirm to add it.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Transactions</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Account</th><th>Category</th><th>Description</th><th style="text-align:right;">Amount</th><th></th></tr></thead>
+        <tbody id="txTable"></tbody>
+      </table>
+      <div class="empty" id="txEmpty" style="display:none;">No transactions yet this month.</div>
+    </div>
+  </div>
+
+  <div id="settingsView" class="hidden">
+    <div class="panel">
+      <h2>Sync</h2>
+      <div class="overallrow"><span>Connected repo</span><strong id="repoLabel"></strong></div>
+      <div class="overallrow"><span>Last synced</span><strong id="lastSynced">—</strong></div>
+      <button class="btn ghost small" style="margin-top:10px;" onclick="manualSync()">Force sync now</button>
+    </div>
+    <div class="panel">
+      <h2>Change Passphrase / PIN</h2>
+      <div class="hint" style="margin-bottom:12px;">Use this to move off test credentials. Re-encrypts your data with a new passphrase and updates this device's PIN. Other devices will need to unlock once with the new passphrase afterward (tap "Use passphrase instead" on their PIN screen).</div>
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">New passphrase (12+ characters)</label>
+      <input type="password" id="newPass" style="width:100%;margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Confirm new passphrase</label>
+      <input type="password" id="newPass2" style="width:100%;margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">New 4-digit PIN</label>
+      <input type="password" id="newPin" maxlength="4" style="width:100%;margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Confirm new PIN</label>
+      <input type="password" id="newPin2" maxlength="4" style="width:100%;margin-bottom:10px;">
+      <button class="btn" onclick="changeCredentials()">Update Passphrase &amp; PIN</button>
+      <div class="errtext" id="credError"></div>
+    </div>
+    <div class="panel">
+      <details><summary>Overall totals (all months)</summary>
+        <div class="overallrow"><span>Lifetime Savings</span><strong id="overallSavings">$0.00</strong></div>
+        <div class="overallrow"><span>Lifetime Investments/Other</span><strong id="overallInvest">$0.00</strong></div>
+      </details>
+    </div>
+    <div class="panel">
+      <h2>Export</h2>
+      <div class="exportrow">
+        <button class="btn" onclick="exportCurrentMonthCSV()">Export current month (CSV)</button>
+        <button class="btn ghost" onclick="exportAllTotalsCSV()">Export all-time totals (CSV)</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Customize Dropdown Options</h2>
+      <div class="settingsgrid">
+        <div>
+          <div class="editable-hint" style="margin-bottom:8px;">Expense accounts</div>
+          <div class="chiplist" id="chip_expenseAccounts"></div>
+          <div class="addrow"><input type="text" id="add_expenseAccounts" placeholder="Add account"><button class="btn small" onclick="addOption('expenseAccounts')">Add</button></div>
+          <div class="editable-hint" style="margin-bottom:8px;">Expense categories</div>
+          <div class="chiplist" id="chip_expenseCategories"></div>
+          <div class="addrow"><input type="text" id="add_expenseCategories" placeholder="Add category"><button class="btn small" onclick="addOption('expenseCategories')">Add</button></div>
+        </div>
+        <div>
+          <div class="editable-hint" style="margin-bottom:8px;">Income accounts</div>
+          <div class="chiplist" id="chip_incomeAccounts"></div>
+          <div class="addrow"><input type="text" id="add_incomeAccounts" placeholder="Add account"><button class="btn small" onclick="addOption('incomeAccounts')">Add</button></div>
+          <div class="editable-hint" style="margin-bottom:8px;">Income categories</div>
+          <div class="chiplist" id="chip_incomeCategories"></div>
+          <div class="addrow"><input type="text" id="add_incomeCategories" placeholder="Add category"><button class="btn small" onclick="addOption('incomeCategories')">Add</button></div>
+        </div>
+      </div>
+      <div style="color:var(--muted);font-size:12px;">Removing an option won't change past transactions — it just won't show up for new entries.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG / CRYPTO ================= */
+const CFG_KEY = 'ledger_cfg_v3';
+const BANK_DEFAULT = 'Bank';
+let cfg = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+let sessionKey = null;       // CryptoKey, in-memory only, cleared on lock/close
+let data = null;             // decrypted data, in-memory only
+let currentSha = null;       // GitHub file sha for updates
+let pendingPin = '';
+
+function bufToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(str){ return Uint8Array.from(atob(str), c=>c.charCodeAt(0)); }
+async function sha256hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function deriveKey(passphrase, saltB64){
+  const salt = b64ToBuf(saltB64);
+  const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:150000, hash:'SHA-256'},
+    baseKey, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']
+  );
+}
+async function encryptBlob(key, obj, saltB64){
+  const salt = b64ToBuf(saltB64);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const pt = new TextEncoder().encode(JSON.stringify(obj));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, pt);
+  const combined = new Uint8Array(salt.length + iv.length + ct.byteLength);
+  combined.set(salt,0); combined.set(iv, salt.length); combined.set(new Uint8Array(ct), salt.length+iv.length);
+  return bufToB64(combined);
+}
+function extractSalt(b64){
+  const combined = b64ToBuf(b64);
+  return bufToB64(combined.slice(0,16));
+}
+async function decryptBlob(key, b64){
+  const combined = b64ToBuf(b64);
+  const iv = combined.slice(16,28);
+  const ct = combined.slice(28);
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+function defaultData(){
+  return {
+    expenseAccounts: ["Debit","Credit Card"],
+    incomeAccounts: ["Bank","Cash","Other"],
+    expenseCategories: ["Other","Food","Gifts","Health/Medical","Home","Transportation","Personal","Pets","Utilities","Travel"],
+    incomeCategories: ["Paycheck","Savings Withdrawal","Gift","Other"],
+    months: {}
+  };
+}
+
+/* ================= GITHUB ================= */
+function ghUrl(){ return `https://api.github.com/repos/${cfg.ghUser}/${cfg.ghRepo}/contents/data.enc`; }
+async function ghGet(){
+  const res = await fetch(ghUrl(), { headers:{ Authorization:`token ${cfg.ghToken}`, Accept:'application/vnd.github+json' }});
+  if(res.status === 404) return { content:null, sha:null };
+  if(!res.ok) throw new Error('GitHub read failed: '+res.status);
+  const json = await res.json();
+  return { content: atob(json.content.replace(/\n/g,'')), sha: json.sha };
+}
+async function ghPut(fileContentB64, sha){
+  const body = { message:'ledger update '+new Date().toISOString(), content: btoa(fileContentB64) };
+  if(sha) body.sha = sha;
+  const res = await fetch(ghUrl(), {
+    method:'PUT',
+    headers:{ Authorization:`token ${cfg.ghToken}`, Accept:'application/vnd.github+json' },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error('GitHub write failed: '+res.status);
+  const json = await res.json();
+  return json.content.sha;
+}
+
+function setSyncBadge(state, text){
+  const b = document.getElementById('syncBadge');
+  b.className = 'syncbadge ' + state;
+  b.textContent = text;
+}
+
+let saveTimer = null;
+function scheduleSave(){
+  save_local_cache();
+  setSyncBadge('saving','saving…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushToGitHub, 900);
+}
+function save_local_cache(){
+  // keep an encrypted-at-rest-adjacent local cache so the app still works offline;
+  // this is plaintext in memory only, never written unencrypted to disk.
+}
+async function pushToGitHub(attempt){
+  attempt = attempt || 1;
+  try{
+    const blob = await encryptBlob(sessionKey, data, cfg.salt);
+    currentSha = await ghPut(blob, currentSha);
+    setSyncBadge('synced','synced');
+    localStorage.setItem('ledger_last_synced', new Date().toLocaleString());
+    updateSyncLabels();
+  }catch(e){
+    console.error(e);
+    if(attempt < 3){
+      setSyncBadge('saving', `retrying (${attempt}/3)…`);
+      setTimeout(()=>pushToGitHub(attempt+1), attempt * 3000);
+    } else {
+      setSyncBadge('error','sync failed — tap to retry');
+    }
+  }
+}
+function manualSync(){ pushToGitHub(); }
+document.addEventListener('DOMContentLoaded', ()=>{
+  const badge = document.getElementById('syncBadge');
+  if(badge) badge.addEventListener('click', ()=>{ if(sessionKey) manualSync(); });
+});
+window.addEventListener('focus', ()=>{ if(sessionKey && data) pushToGitHub(); });
+function updateSyncLabels(){
+  const rl = document.getElementById('repoLabel');
+  if(rl) rl.textContent = cfg ? `${cfg.ghUser}/${cfg.ghRepo}` : '—';
+  const ls = document.getElementById('lastSynced');
+  if(ls) ls.textContent = localStorage.getItem('ledger_last_synced') || '—';
+}
+
+/* ================= SETUP FLOW ================= */
+async function doSetup(){
+  const ghUser = document.getElementById('setupUser').value.trim();
+  const ghRepo = document.getElementById('setupRepo').value.trim();
+  const ghToken = document.getElementById('setupToken').value.trim();
+  const pin = document.getElementById('setupPin').value.trim();
+  const pass = document.getElementById('setupPass').value;
+  const pass2 = document.getElementById('setupPass2').value;
+  const err = document.getElementById('setupError');
+  err.textContent = '';
+
+  if(!ghUser || !ghRepo || !ghToken){ err.textContent = 'Fill in username, repo, and token.'; return; }
+  if(!/^\d{4}$/.test(pin)){ err.textContent = 'PIN must be exactly 4 digits.'; return; }
+  if(pass.length < 12){ err.textContent = 'Passphrase should be at least 12 characters.'; return; }
+
+  const pinHash = await sha256hex(pin);
+  cfg = { ghUser, ghRepo, ghToken, salt:null, pinHash };
+
+  try{
+    setSyncBadge('saving','connecting…');
+    const existing = await ghGet();
+
+    if(existing.content){
+      // Joining an existing ledger (e.g. second device) — reuse ITS salt.
+      const salt = extractSalt(existing.content);
+      const key = await deriveKey(pass, salt);
+      let decoded;
+      try{ decoded = await decryptBlob(key, existing.content); }
+      catch(e){ err.textContent = 'That passphrase doesn\'t match this ledger\'s existing data.'; return; }
+      cfg.salt = salt;
+      sessionKey = key;
+      data = decoded;
+      currentSha = existing.sha;
+    } else {
+      // First device ever — this passphrase becomes the one going forward.
+      if(pass !== pass2){ err.textContent = "Passphrases don't match."; return; }
+      cfg.salt = bufToB64(crypto.getRandomValues(new Uint8Array(16)));
+      sessionKey = await deriveKey(pass, cfg.salt);
+      const oldLocal = JSON.parse(localStorage.getItem('ledger_data_v2') || 'null');
+      data = oldLocal || defaultData();
+      currentSha = null;
+      await pushToGitHub();
+    }
+
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    await wrapPassphraseWithPin(pass, pin);
+    document.getElementById('setupScreen').classList.add('hidden');
+    unlockApp();
+  }catch(e){
+    console.error(e);
+    err.textContent = 'Could not connect — check your username, repo name, and token.';
+    cfg = null; localStorage.removeItem(CFG_KEY);
+  }
+}
+
+/* ================= PIN + PASSPHRASE UNLOCK ================= */
+async function wrapPassphraseWithPin(passphrase, pin){
+  const pinSalt = bufToB64(crypto.getRandomValues(new Uint8Array(16)));
+  const pinKey = await deriveKey(pin, pinSalt);
+  cfg.wrappedPass = await encryptBlob(pinKey, {pass: passphrase}, pinSalt);
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+}
+async function unwrapPassphraseWithPin(pin){
+  const salt = extractSalt(cfg.wrappedPass);
+  const pinKey = await deriveKey(pin, salt);
+  const obj = await decryptBlob(pinKey, cfg.wrappedPass); // throws if PIN wrong / corrupted
+  return obj.pass;
+}
+
+const dotsEl = document.getElementById('dots');
+const keypad = document.getElementById('keypad');
+['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k=>{
+  const b = document.createElement('button');
+  if(k===''){ b.className='key wide'; b.disabled=true; }
+  else { b.className='key'; b.textContent=k; b.onclick=()=>pressKey(k); }
+  keypad.appendChild(b);
+});
+function updateDots(){ [...dotsEl.children].forEach((d,i)=> d.classList.toggle('filled', i < pendingPin.length)); }
+async function pressKey(k){
+  const err = document.getElementById('pinError');
+  err.textContent = '';
+  if(k === '⌫'){ pendingPin = pendingPin.slice(0,-1); updateDots(); return; }
+  if(pendingPin.length >= 4) return;
+  pendingPin += k; updateDots();
+  if(pendingPin.length === 4){
+    const pin = pendingPin; pendingPin='';
+    const hash = await sha256hex(pin);
+    if(hash !== cfg.pinHash){ err.textContent = 'Incorrect PIN.'; updateDots(); return; }
+
+    if(sessionKey){ showApp(); return; } // already unlocked this session
+
+    if(!cfg.wrappedPass){
+      // older setup without a wrapped passphrase yet — fall back once, then wrap it
+      document.getElementById('pinScreen').classList.add('hidden');
+      document.getElementById('passScreen').classList.remove('hidden');
+      return;
+    }
+    try{
+      setSyncBadge('saving','unlocking…');
+      const passphrase = await unwrapPassphraseWithPin(pin);
+      const key = await deriveKey(passphrase, cfg.salt);
+      const remote = await ghGet();
+      data = remote.content ? await decryptBlob(key, remote.content) : defaultData();
+      sessionKey = key;
+      currentSha = remote.sha;
+      showApp();
+    }catch(e){
+      console.error(e);
+      err.textContent = 'Could not unlock — try again, or use your passphrase below.';
+      updateDots();
+    }
+  }
+}
+function usePassphraseInstead(){
+  document.getElementById('pinScreen').classList.add('hidden');
+  document.getElementById('passScreen').classList.remove('hidden');
+}
+async function submitPassphrase(){
+  const pass = document.getElementById('passInput').value;
+  const err = document.getElementById('passError');
+  err.textContent = '';
+  try{
+    setSyncBadge('saving','loading…');
+    const remote = await ghGet();
+    let key, decoded;
+    if(remote.content){
+      const salt = extractSalt(remote.content);
+      key = await deriveKey(pass, salt);
+      decoded = await decryptBlob(key, remote.content); // throws if wrong passphrase
+      cfg.salt = salt;
+    } else {
+      key = await deriveKey(pass, cfg.salt || bufToB64(crypto.getRandomValues(new Uint8Array(16))));
+      decoded = defaultData();
+    }
+    data = decoded;
+    sessionKey = key;
+    currentSha = remote.sha;
+    document.getElementById('passInput').value = '';
+    document.getElementById('passScreen').classList.add('hidden');
+    const pinDigits = prompt('Confirm your 4-digit PIN once more to enable PIN-only unlock next time:');
+    if(pinDigits && /^\d{4}$/.test(pinDigits) && (await sha256hex(pinDigits)) === cfg.pinHash){
+      await wrapPassphraseWithPin(pass, pinDigits);
+    }
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    showApp();
+  }catch(e){
+    console.error(e);
+    err.textContent = 'Incorrect passphrase, or could not reach GitHub.';
+  }
+}
+function lockToPin(){
+  document.getElementById('app').style.display='none';
+  document.getElementById('pinScreen').classList.remove('hidden');
+  pendingPin=''; updateDots();
+}
+function lockFully(){
+  sessionKey = null; data = null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('pinScreen').classList.remove('hidden');
+  pendingPin=''; updateDots();
+}
+
+/* ---- auto-lock on inactivity ---- */
+let inactivityTimer = null;
+const AUTO_LOCK_MS = 10 * 60 * 1000; // 10 minutes
+function resetInactivityTimer(){
+  clearTimeout(inactivityTimer);
+  if(sessionKey) inactivityTimer = setTimeout(lockFully, AUTO_LOCK_MS);
+}
+['mousemove','keydown','click','touchstart'].forEach(evt=>document.addEventListener(evt, resetInactivityTimer));
+window.addEventListener('beforeunload', ()=>{ sessionKey=null; });
+
+/* ================= VIEW SWITCH ================= */
+function setView(view){
+  document.getElementById('ledgerView').classList.toggle('hidden', view!=='ledger');
+  document.getElementById('settingsView').classList.toggle('hidden', view!=='settings');
+  document.getElementById('viewLedgerBtn').classList.toggle('active', view==='ledger');
+  document.getElementById('viewSettingsBtn').classList.toggle('active', view==='settings');
+  if(view==='settings'){ renderSettings(); updateSyncLabels(); }
+}
+
+/* ================= APP LOGIC (same behavior as v2) ================= */
+let currentMonth = monthKey(new Date());
+let editingId = null;
+function monthKey(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(key){ const [y,m]=key.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString(undefined,{month:'long',year:'numeric'}); }
+function fmt(n){ const v=Number(n)||0; return (v<0?'-':'')+'$'+Math.abs(v).toFixed(2); }
+function ensureMonth(key){
+  if(!data.months[key]) data.months[key] = { startBalance:0, savingsAdjustment:0, investAdjustment:0, transactions:[] };
+  return data.months[key];
+}
+function setToday(fieldId){ document.getElementById(fieldId).value = new Date().toISOString().slice(0,10); }
+
+function monthSavings(key){
+  const m = data.months[key]; if(!m) return 0;
+  let net = m.savingsAdjustment||0;
+  (m.transactions||[]).forEach(t=>{
+    if(t.type==='income'){
+      if(t.category==='Paycheck' && t.splits) net += t.splits.savings;
+      if(t.category==='Savings Withdrawal') net -= t.amount;
+    }
+  });
+  return net;
+}
+function monthInvest(key){
+  const m = data.months[key]; if(!m) return 0;
+  let net = m.investAdjustment||0;
+  (m.transactions||[]).forEach(t=>{ if(t.type==='income' && t.category==='Paycheck' && t.splits) net += t.splits.investment; });
+  return net;
+}
+function overallSavings(){ return Object.keys(data.months).reduce((s,k)=>s+monthSavings(k),0); }
+function overallInvest(){ return Object.keys(data.months).reduce((s,k)=>s+monthInvest(k),0); }
+
+function populateSelects(){ onTypeChange(); }
+function onTypeChange(){
+  const type = document.getElementById('txType').value;
+  const catSel = document.getElementById('txCategory');
+  const accSel = document.getElementById('txAccount');
+  if(type === 'expense'){
+    accSel.innerHTML = data.expenseAccounts.map(a=>`<option>${a}</option>`).join('');
+    catSel.innerHTML = data.expenseCategories.map(c=>`<option>${c}</option>`).join('');
+    const otherIdx = data.expenseCategories.indexOf('Other');
+    if(otherIdx>=0) catSel.selectedIndex = otherIdx;
+    document.getElementById('splitRow').classList.remove('show');
+    document.getElementById('flagNote').classList.remove('show');
+  } else {
+    accSel.innerHTML = data.incomeAccounts.map(a=>`<option>${a}</option>`).join('');
+    const bankIdx = data.incomeAccounts.indexOf(BANK_DEFAULT);
+    if(bankIdx>=0) accSel.selectedIndex = bankIdx;
+    catSel.innerHTML = data.incomeCategories.map(c=>`<option>${c}</option>`).join('');
+    catSel.onchange = ()=>{ document.getElementById('splitRow').classList.toggle('show', catSel.value==='Paycheck'); };
+    catSel.onchange();
+    onAccountChange();
+  }
+}
+function onAccountChange(){
+  const type = document.getElementById('txType').value;
+  const acc = document.getElementById('txAccount').value;
+  document.getElementById('flagNote').classList.toggle('show', type==='income' && acc !== BANK_DEFAULT);
+}
+function setStartBalance(v){ ensureMonth(currentMonth).startBalance = parseFloat(v)||0; scheduleSave(); render(); }
+function setAdjustment(field, v){ ensureMonth(currentMonth)[field] = parseFloat(v)||0; scheduleSave(); render(); }
+function shiftMonth(delta){
+  const [y,m] = currentMonth.split('-').map(Number);
+  currentMonth = monthKey(new Date(y, m-1+delta, 1));
+  cancelEdit(); render();
+}
+function submitTransaction(){
+  const type = document.getElementById('txType').value;
+  const date = document.getElementById('txDate').value || new Date().toISOString().slice(0,10);
+  const amount = parseFloat(document.getElementById('txAmount').value);
+  const account = document.getElementById('txAccount').value;
+  const category = document.getElementById('txCategory').value;
+  const description = document.getElementById('txDesc').value;
+  if(!amount || amount <= 0){ alert('Enter an amount greater than 0.'); return; }
+  const tx = { id: editingId || (Date.now()+Math.random()), type, date, amount, account, category, description };
+  if(type === 'income' && category === 'Paycheck'){
+    const sp = parseFloat(document.getElementById('splitSpend').value)||0;
+    const sv = parseFloat(document.getElementById('splitSave').value)||0;
+    const inv = parseFloat(document.getElementById('splitInvest').value)||0;
+    if(Math.abs((sp+sv+inv) - amount) > 0.01){ alert('Splits must add up to the total amount.'); return; }
+    tx.splits = { spending: sp, savings: sv, investment: inv };
+  }
+  if(type === 'income' && account !== BANK_DEFAULT) tx.flagged = true;
+  const m = ensureMonth(currentMonth);
+  if(editingId){
+    const idx = m.transactions.findIndex(t=>t.id===editingId);
+    if(idx>=0) m.transactions[idx] = tx;
+    cancelEdit();
+  } else { m.transactions.push(tx); }
+  scheduleSave(); clearForm(); render();
+}
+function clearForm(){
+  document.getElementById('txAmount').value='';
+  document.getElementById('txDesc').value='';
+  document.getElementById('splitSpend').value='';
+  document.getElementById('splitSave').value='';
+  document.getElementById('splitInvest').value='';
+}
+function editTransaction(id){
+  const m = ensureMonth(currentMonth);
+  const tx = m.transactions.find(t=>t.id===id);
+  if(!tx) return;
+  editingId = id;
+  document.getElementById('txType').value = tx.type; onTypeChange();
+  document.getElementById('txDate').value = tx.date;
+  document.getElementById('txAmount').value = tx.amount;
+  document.getElementById('txAccount').value = tx.account; onAccountChange();
+  document.getElementById('txCategory').value = tx.category;
+  if(tx.category==='Paycheck') document.getElementById('splitRow').classList.add('show');
+  document.getElementById('txDesc').value = tx.description||'';
+  if(tx.splits){
+    document.getElementById('splitSpend').value = tx.splits.spending;
+    document.getElementById('splitSave').value = tx.splits.savings;
+    document.getElementById('splitInvest').value = tx.splits.investment;
+  }
+  document.getElementById('formHeading').textContent = 'Edit Transaction';
+  document.getElementById('submitBtn').textContent = 'Save Changes';
+  document.getElementById('editCancelWrap').style.display = 'block';
+}
+function cancelEdit(){
+  editingId = null;
+  document.getElementById('formHeading').textContent = 'Add Transaction';
+  document.getElementById('submitBtn').textContent = 'Add';
+  document.getElementById('editCancelWrap').style.display = 'none';
+  clearForm();
+}
+function deleteTransaction(id){
+  const m = ensureMonth(currentMonth);
+  m.transactions = m.transactions.filter(t=>t.id!==id);
+  if(editingId===id) cancelEdit();
+  scheduleSave(); render();
+}
+function handleShot(e){
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt=>{
+    const container = document.getElementById('stagedShots');
+    const id = 'shot_'+Date.now();
+    const row = document.createElement('div');
+    row.className='shot-row'; row.style.marginTop='10px';
+    row.innerHTML = `
+      <img src="${evt.target.result}">
+      <div class="shot-fields">
+        <div class="dateWrap"><input type="date" id="${id}_date"><button type="button" class="todaybtn" onclick="setToday('${id}_date')">Today</button></div>
+        <input type="number" step="0.01" placeholder="Amount" id="${id}_amt">
+        <input type="text" placeholder="Merchant / description" id="${id}_desc">
+        <select id="${id}_cat">${data.expenseCategories.map(c=>`<option>${c}</option>`).join('')}</select>
+      </div>
+      <button class="btn" onclick="confirmShot('${id}', this)">Add</button>
+    `;
+    container.appendChild(row);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+function confirmShot(id, btn){
+  const date = document.getElementById(id+'_date').value || new Date().toISOString().slice(0,10);
+  const amount = parseFloat(document.getElementById(id+'_amt').value);
+  const description = document.getElementById(id+'_desc').value;
+  const category = document.getElementById(id+'_cat').value;
+  if(!amount || amount<=0){ alert('Enter an amount.'); return; }
+  const m = ensureMonth(currentMonth);
+  m.transactions.push({ id: Date.now()+Math.random(), type:'expense', date, amount, account: data.expenseAccounts[0], category, description });
+  scheduleSave(); btn.closest('.shot-row').remove(); render();
+}
+async function changeCredentials(){
+  const err = document.getElementById('credError');
+  err.textContent = '';
+  const newPass = document.getElementById('newPass').value;
+  const newPass2 = document.getElementById('newPass2').value;
+  const newPin = document.getElementById('newPin').value.trim();
+  const newPin2 = document.getElementById('newPin2').value.trim();
+
+  if(newPass.length < 12){ err.textContent = 'New passphrase should be at least 12 characters.'; return; }
+  if(newPass !== newPass2){ err.textContent = "Passphrases don't match."; return; }
+  if(!/^\d{4}$/.test(newPin) || newPin !== newPin2){ err.textContent = 'PIN must be 4 digits and match.'; return; }
+
+  try{
+    setSyncBadge('saving','re-encrypting…');
+    const newSalt = bufToB64(crypto.getRandomValues(new Uint8Array(16)));
+    const newKey = await deriveKey(newPass, newSalt);
+    cfg.salt = newSalt;
+    sessionKey = newKey;
+    cfg.pinHash = await sha256hex(newPin);
+    await wrapPassphraseWithPin(newPass, newPin);
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    await pushToGitHub();
+    document.getElementById('newPass').value='';
+    document.getElementById('newPass2').value='';
+    document.getElementById('newPin').value='';
+    document.getElementById('newPin2').value='';
+    alert('Passphrase and PIN updated. Other devices should tap "Use passphrase instead" and enter the new passphrase once.');
+  }catch(e){
+    console.error(e);
+    err.textContent = 'Something went wrong updating your credentials — try again.';
+  }
+}
+function renderSettings(){
+  ['expenseAccounts','incomeAccounts','expenseCategories','incomeCategories'].forEach(field=>{
+    const wrap = document.getElementById('chip_'+field);
+    wrap.innerHTML = data[field].map(opt=>`<div class="chip">${opt}<button onclick="removeOption('${field}','${opt.replace(/'/g,"\\'")}')">✕</button></div>`).join('');
+  });
+  document.getElementById('overallSavings').textContent = fmt(overallSavings());
+  document.getElementById('overallInvest').textContent = fmt(overallInvest());
+}
+function addOption(field){
+  const input = document.getElementById('add_'+field);
+  const val = input.value.trim();
+  if(!val) return;
+  if(!data[field].includes(val)) data[field].push(val);
+  input.value=''; scheduleSave(); renderSettings();
+}
+function removeOption(field, val){
+  data[field] = data[field].filter(o=>o!==val);
+  scheduleSave(); renderSettings();
+}
+function downloadCSV(filename, rows){
+  const csv = rows.map(r=>r.map(c=>{ const s=String(c??''); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function exportCurrentMonthCSV(){
+  const m = ensureMonth(currentMonth);
+  const rows = [['Date','Type','Account','Category','Description','Amount','Flagged']];
+  [...m.transactions].sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
+    rows.push([t.date, t.type, t.account, t.category, t.description||'', t.amount.toFixed(2), t.flagged?'Yes':'']);
+  });
+  downloadCSV(`Budget Tracker v2 - ${monthLabel(currentMonth)} Transactions.csv`, rows);
+}
+function exportAllTotalsCSV(){
+  const rows = [['Month','Start Balance','Income','Expense','Net','End Balance','Savings This Month','Investment This Month']];
+  Object.keys(data.months).sort().forEach(key=>{
+    const m = data.months[key];
+    let income=0, expense=0;
+    m.transactions.forEach(t=>{
+      if(t.type==='expense') expense += t.amount;
+      else income += (t.category==='Paycheck' && t.splits) ? t.splits.spending : t.amount;
+    });
+    const end = m.startBalance + income - expense;
+    rows.push([monthLabel(key), m.startBalance.toFixed(2), income.toFixed(2), expense.toFixed(2), (income-expense).toFixed(2), end.toFixed(2), monthSavings(key).toFixed(2), monthInvest(key).toFixed(2)]);
+  });
+  rows.push([]);
+  rows.push(['Lifetime Savings', overallSavings().toFixed(2)]);
+  rows.push(['Lifetime Investments/Other', overallInvest().toFixed(2)]);
+  downloadCSV('Budget Tracker v2 - All Totals.csv', rows);
+}
+function render(){
+  document.getElementById('monthLabel').textContent = monthLabel(currentMonth);
+  const m = ensureMonth(currentMonth);
+  document.getElementById('startBalInput').value = m.startBalance;
+  document.getElementById('savingsAdjInput').value = m.savingsAdjustment;
+  document.getElementById('investAdjInput').value = m.investAdjustment;
+  let income=0, expense=0;
+  m.transactions.forEach(t=>{
+    if(t.type==='expense') expense += t.amount;
+    else income += (t.category==='Paycheck' && t.splits) ? t.splits.spending : t.amount;
+  });
+  const endBal = m.startBalance + income - expense;
+  document.getElementById('spendLeft').textContent = fmt(endBal);
+  document.getElementById('netMonth').textContent = fmt(income-expense);
+  document.getElementById('netMonth').className = 'v ' + ((income-expense)>=0?'pos':'neg');
+  const tbody = document.getElementById('txTable');
+  const sorted = [...m.transactions].sort((a,b)=> a.date.localeCompare(b.date));
+  tbody.innerHTML = sorted.map(t=>`
+    <tr>
+      <td>${t.date}</td>
+      <td><span class="tag ${t.type==='expense'?'exp':'inc'}">${t.type}</span>${t.flagged?'<span class="tag flag">⚑ move to Bank</span>':''}</td>
+      <td>${t.account||'—'}</td>
+      <td>${t.category}</td>
+      <td>${t.description||''}</td>
+      <td style="text-align:right;" class="mono amt ${t.type==='expense'?'exp':'inc'}">${t.type==='expense'?'-':'+'}${fmt(t.amount)}</td>
+      <td><div class="rowbtns">
+        <button class="iconsm" title="Edit" onclick="editTransaction(${t.id})">✎</button>
+        <button class="iconsm del" title="Delete" onclick="deleteTransaction(${t.id})">✕</button>
+      </div></td>
+    </tr>
+  `).join('');
+  document.getElementById('txEmpty').style.display = sorted.length ? 'none' : 'block';
+  drawChart(m, sorted);
+  if(!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
+}
+function drawChart(m, sorted){
+  const svg = document.getElementById('chart');
+  const W=900,H=220,padL=50,padR=20,padT=16,padB=26;
+  svg.innerHTML='';
+  const [y,mo] = currentMonth.split('-').map(Number);
+  const daysInMonth = new Date(y,mo,0).getDate();
+  let bal = m.startBalance;
+  const points = [{day:0,bal}];
+  for(let d=1; d<=daysInMonth; d++){
+    const dayStr = currentMonth+'-'+String(d).padStart(2,'0');
+    sorted.filter(t=>t.date===dayStr).forEach(t=>{
+      if(t.type==='expense') bal -= t.amount;
+      else bal += (t.category==='Paycheck' && t.splits) ? t.splits.spending : t.amount;
+    });
+    points.push({day:d,bal});
+  }
+  const balances = points.map(p=>p.bal);
+  const min = Math.min(...balances,0), max = Math.max(...balances,0);
+  const range = (max-min)||1;
+  const x = day => padL + (day/daysInMonth)*(W-padL-padR);
+  const y2 = b => padT + (1-(b-min)/range)*(H-padT-padB);
+  const ns = 'http://www.w3.org/2000/svg';
+  const zeroLine = document.createElementNS(ns,'line');
+  zeroLine.setAttribute('x1',padL); zeroLine.setAttribute('x2',W-padR);
+  zeroLine.setAttribute('y1',y2(0)); zeroLine.setAttribute('y2',y2(0));
+  zeroLine.setAttribute('stroke','#343c4a'); zeroLine.setAttribute('stroke-dasharray','2,3');
+  svg.appendChild(zeroLine);
+  const path = document.createElementNS(ns,'polyline');
+  path.setAttribute('points', points.map(p=>`${x(p.day)},${y2(p.bal)}`).join(' '));
+  path.setAttribute('fill','none'); path.setAttribute('stroke','#d9b25f'); path.setAttribute('stroke-width','2');
+  path.setAttribute('stroke-dasharray','1,7'); path.setAttribute('stroke-linecap','round');
+  svg.appendChild(path);
+  points.forEach((p,i)=>{
+    if(i% Math.max(1,Math.round(daysInMonth/12)) !==0 && i!==points.length-1) return;
+    const c = document.createElementNS(ns,'circle');
+    c.setAttribute('cx',x(p.day)); c.setAttribute('cy',y2(p.bal)); c.setAttribute('r',3);
+    c.setAttribute('fill', p.bal>=0 ? '#3eb489' : '#c1543c');
+    svg.appendChild(c);
+  });
+  [0,1,2,3,4].forEach(i=>{
+    const val = min + (range*i/4);
+    const t = document.createElementNS(ns,'text');
+    t.setAttribute('x',6); t.setAttribute('y', y2(val)+3); t.textContent = fmt(val);
+    svg.appendChild(t);
+  });
+}
+function showApp(){
+  document.getElementById('pinScreen').classList.add('hidden');
+  document.getElementById('passScreen').classList.add('hidden');
+  document.getElementById('app').style.display = 'block';
+  populateSelects();
+  document.getElementById('txDate').value = new Date().toISOString().slice(0,10);
+  setView('ledger');
+  setSyncBadge('synced','synced');
+  updateSyncLabels();
+  resetInactivityTimer();
+  render();
+}
+function unlockApp(){ showApp(); }
+
+/* ================= BOOT ================= */
+if(cfg){
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('pinScreen').classList.remove('hidden');
+  updateDots();
+} else {
+  document.getElementById('setupScreen').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
