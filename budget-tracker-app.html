@@ -181,6 +181,8 @@
     </div>
     <div class="topbtns">
       <span class="syncbadge" id="syncBadge">idle</span>
+      <button class="iconbtn" onclick="forcePull()" title="Grab the latest from GitHub, discarding anything unsaved here">⬇ Pull</button>
+      <button class="iconbtn" onclick="forcePush()" title="Force what's on this device up to GitHub, overwriting the remote copy">⬆ Push</button>
       <button class="iconbtn" id="viewLedgerBtn" onclick="setView('ledger')">Ledger</button>
       <button class="iconbtn" id="viewSettingsBtn" onclick="setView('settings')">⚙ Settings</button>
       <button class="iconbtn" onclick="lockFully()">🔒 Lock</button>
@@ -280,7 +282,8 @@
       <h2>Sync</h2>
       <div class="overallrow"><span>Connected repo</span><strong id="repoLabel"></strong></div>
       <div class="overallrow"><span>Last synced</span><strong id="lastSynced">—</strong></div>
-      <button class="btn ghost small" style="margin-top:10px;" onclick="manualSync()">Force sync now</button>
+      <button class="btn ghost small" style="margin-top:10px;" onclick="forcePull()">⬇ Pull latest from GitHub</button>
+      <button class="btn ghost small" style="margin-top:10px;" onclick="forcePush()">⬆ Push this device's data</button>
     </div>
     <div class="panel">
       <h2>Change Passphrase / PIN</h2>
@@ -467,6 +470,40 @@ async function pullIfChanged(){
       render();
     }
   }catch(e){ console.error('pull check failed', e); }
+}
+async function forcePull(){
+  if(dirty && !confirm("You have unsaved changes on this device that haven't synced yet. Pulling will discard them and replace with GitHub's version. Continue?")) return;
+  try{
+    setSyncBadge('saving','pulling…');
+    const remote = await ghGet();
+    data = remote.content ? await decryptBlob(sessionKey, remote.content) : defaultData();
+    currentSha = remote.sha;
+    dirty = false;
+    clearTimeout(saveTimer);
+    setSyncBadge('synced','pulled');
+    localStorage.setItem('ledger_last_synced', new Date().toLocaleString());
+    updateSyncLabels();
+    render();
+  }catch(e){
+    console.error(e);
+    setSyncBadge('error','pull failed — tap to retry');
+  }
+}
+async function forcePush(){
+  try{
+    setSyncBadge('saving','pushing…');
+    const fresh = await ghGet(); // get the current sha so the write is accepted
+    currentSha = fresh.sha;
+    const blob = await encryptBlob(sessionKey, data, cfg.salt);
+    currentSha = await ghPut(blob, currentSha);
+    dirty = false;
+    setSyncBadge('synced','pushed');
+    localStorage.setItem('ledger_last_synced', new Date().toLocaleString());
+    updateSyncLabels();
+  }catch(e){
+    console.error(e);
+    setSyncBadge('error','push failed — tap to retry');
+  }
 }
 function manualSync(){ dirty ? pushToGitHub() : pullIfChanged(); }
 document.addEventListener('DOMContentLoaded', ()=>{
