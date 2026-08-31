@@ -58,6 +58,17 @@
 
   .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:22px;}
   @media(max-width:760px){.grid{grid-template-columns:1fr 1fr;}}
+  @media(max-width:480px){
+    .grid{grid-template-columns:1fr;}
+    #app{padding:18px 12px 60px;}
+    .hero{padding:18px 16px;}
+    .hero .v{font-size:30px;}
+    header.top h1{font-size:20px;}
+    .txform{grid-template-columns:1fr !important;}
+    .shot-fields{grid-template-columns:1fr !important;}
+    table{font-size:12px;}
+    th,td{padding:7px 5px;}
+  }
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
   .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;}
   .card .v{font-size:19px;font-weight:600;}
@@ -103,7 +114,8 @@
   .shot-row img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);}
   .shot-fields{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;flex:1;min-width:280px;}
 
-  #chartWrap{width:100%;overflow-x:auto;}
+  #chartWrap{width:100%;}
+  #chart{width:100%;height:auto;display:block;}
   svg text{fill:var(--muted);font-size:10px;}
   .empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center;}
 
@@ -222,7 +234,7 @@
 
     <div class="panel">
       <h2>Balance Flow This Month</h2>
-      <div id="chartWrap"><svg id="chart" width="900" height="220"></svg></div>
+      <div id="chartWrap"><svg id="chart" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg></div>
     </div>
 
     <div class="panel">
@@ -269,10 +281,12 @@
 
     <div class="panel">
       <h2>Transactions</h2>
+      <div style="overflow-x:auto;">
       <table>
         <thead><tr><th>Date</th><th>Type</th><th>Account</th><th>Category</th><th>Description</th><th style="text-align:right;">Amount</th><th></th></tr></thead>
         <tbody id="txTable"></tbody>
       </table>
+      </div>
       <div class="empty" id="txEmpty" style="display:none;">No transactions yet this month.</div>
     </div>
   </div>
